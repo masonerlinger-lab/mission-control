@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mission Control</title><style>
+:root{--bg:#05080d;--card:#0b121b;--line:#16324a;--c:#4de3ff;--t:#cfe8f5;--d:#6b8aa0;--ok:#3dffa0;--w:#ffb020;--bad:#ff4d5e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:14px 'Segoe UI',system-ui,sans-serif;padding:18px}
+h1{font-size:16px;letter-spacing:.25em;color:var(--c);margin:0 0 14px;font-weight:600}h1 small{color:var(--d);letter-spacing:0;margin-left:12px;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px}
+.card h2{margin:0 0 10px;font-size:11px;letter-spacing:.2em;color:var(--c);font-weight:600}
+.row{display:flex;justify-content:space-between;margin:7px 0;color:var(--d)}.row b{color:var(--t);font-weight:500}
+.bar{height:6px;background:#10202e;border-radius:3px;margin:3px 0 9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--c);transition:width .5s}
+.big{font-size:28px;color:var(--t)}.ok{color:var(--ok)}.bad{color:var(--bad)}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;background:var(--bad)}.dot.up{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+button{background:transparent;color:var(--c);border:1px solid var(--c);border-radius:4px;padding:3px 10px;cursor:pointer;margin-left:8px}button:hover{background:#0f2a3a}button:disabled{opacity:.4}
+#warn .b{background:#2a1215;border:1px solid var(--bad);color:#ffb3bb;padding:8px 12px;border-radius:5px;margin-bottom:8px}#warn .b.soft{background:#2a2110;border-color:var(--w);color:#ffd98a}
+pre{margin:0;white-space:pre-wrap;word-break:break-all;font:11px Consolas,monospace;color:var(--d);max-height:170px;overflow:auto}.wide{grid-column:1/-1}
+</style></head><body><h1>MISSION CONTROL<small id="meta">connecting…</small></h1><div id="warn"></div><div class="grid">
+<div class="card"><h2>GPU</h2><div id="gpu"></div></div><div class="card"><h2>SYSTEM</h2><div id="sys"></div></div>
+<div class="card"><h2>SERVICES</h2><div id="svc"></div></div><div class="card"><h2>PINPOINTER ACTIVITY</h2><div id="pin"></div></div>
+<div id="train" style="display:none"></div></div><div id="xtra" class="grid" style="margin-top:14px"></div><script src="/extras.js"></script><script>
+const $=id=>document.getElementById(id);const bar=(p,c)=>`<div class="bar"><i style="width:${Math.min(100,p||0)}%;${c?'background:'+c:''}"></i></div>`;
+const row=(a,b)=>`<div class="row"><span>${a}</span><b>${b}</b></div>`;const col=(p,w,b)=>p>b?'var(--bad)':p>w?'var(--w)':'';
+function ago(ms){const s=Math.round((Date.now()-ms)/1000);return s<60?s+'s ago':s<3600?Math.round(s/60)+'m ago':Math.round(s/3600)+'h ago'}
+function render(d){const g=d.gpu;
+$('gpu').innerHTML=g?`<div class="big">${g.util}%</div>${bar(g.util)}${row('Model',g.name)}${row('Temp',g.temp+' °C')}${bar(g.temp,col(g.temp,70,78))}${row('VRAM',g.memUsed+' / '+g.memTotal+' MiB')}${bar(100*g.memUsed/g.memTotal,col(100*g.memUsed/g.memTotal,85,95))}${row('Power',(g.power??'?')+' / '+(g.powerLimit??'?')+' W')}${row('Fan',(g.fan??'?')+'%')}`:'<span class="bad">nvidia-smi unavailable</span>';
+$('sys').innerHTML=row('CPU ('+d.cpu.cores+' threads)',d.cpu.pct+'%')+bar(d.cpu.pct,col(d.cpu.pct,80,95))+row('RAM',d.ram.usedGB+' / '+d.ram.totalGB+' GB ('+d.ram.pct+'%)')+bar(d.ram.pct,col(d.ram.pct,80,90))+(d.disk?row('Disk C: free',d.disk.freeGB+' / '+d.disk.totalGB+' GB'):'')+row('Uptime',Math.floor(d.uptime/3600)+'h '+Math.floor(d.uptime%3600/60)+'m');
+const S=d.svc,mm=d.models.length?d.models.map(m=>m.name+' ('+m.vram+' MiB VRAM)').join(', '):'none loaded';
+const line=(n,s,btn,extra)=>`<div class="row"><span><span class="dot ${s&&s.up?'up':''}"></span>${n} <small>:${s?s.port:''}</small></span><b>${s&&s.up?'<span class=ok>UP</span>':'<span class=bad>DOWN</span>'}${btn?`<button data-r="${btn}">Restart</button>`:''}</b></div>${extra||''}`;
+$('svc').innerHTML=line("God's Eye",S.godseye)+line('GeoCLIP service',S.geoclip,'geoclip',S.geoclip.up?'':'<div class="row"><small>idle: auto-stops after 3 min, starts on demand</small></div>')+line('Ollama',S.ollama,'ollama','<div class="row"><small>Loaded: '+mm+'</small></div>');
+$('pin').innerHTML=d.pin&&d.pin.lines.length?`<pre>${d.pin.lines.map(l=>l.replace(/[<&]/g,'')).join('\n')}</pre>`+row('Log updated',ago(d.pin.logUpdated)):'<span style="color:var(--d)">No pinpointer activity in the dev log yet.</span>';
+const t=d.train;$('train').innerHTML=t?(()=>{const p=t.percent??(t.total?100*t.done/t.total:null);return row('Phase',t.phase||t.status||'running')+(p!=null?bar(p)+row('Progress',p.toFixed(1)+'%'):'')+Object.entries(t).filter(([k])=>!['phase','status','percent'].includes(k)).map(([k,v])=>row(k,typeof v=='object'?JSON.stringify(v):v)).join('')})():'<span style="color:var(--d)">No training running.</span>';
+$('warn').innerHTML=d.warnings.map(w=>`<div class="b ${/GeoCLIP service not/.test(w)?'soft':''}">⚠ ${w}</div>`).join('');
+$('meta').textContent='live · '+new Date(d.t).toLocaleTimeString()}
+async function tick(){try{render(await (await fetch('/api/status',{cache:'no-store'})).json())}catch{$('meta').textContent='server unreachable'}}
+document.addEventListener('click',async e=>{const b=e.target.closest('button[data-r]');if(!b)return;b.disabled=true;b.textContent='Restarting…';
+try{const r=await (await fetch('/api/restart/'+b.dataset.r,{method:'POST'})).json();if(!r.ok)alert(r.error||'failed')}catch{alert('request failed')}tick()});
+tick();setInterval(tick,2000);</script></body></html>

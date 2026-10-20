@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+out/
+.env
+.env.*
+!.env.example
+*.log
+profile/
+freeze-events.json
+freeze-history.json
+train-state.json
+.DS_Store
+Thumbs.db
